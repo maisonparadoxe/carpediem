@@ -248,7 +248,8 @@ var TYPES={
 };
 var DECORS=[
   {id:"stone",label:"Pierres"},{id:"algae",label:"Algues"},
-  {id:"pad",label:"Nénuphar"},{id:"lotus",label:"Lotus"}
+  {id:"pad",label:"Nénuphar"},{id:"lotus",label:"Lotus"},
+  {id:"pebbles",label:"Galets"},{id:"reed",label:"Roseaux"}
 ];
 /* nourritures : chaque espèce a sa préférée ; les autres sont mangées moins volontiers */
 var FOODS={
@@ -885,51 +886,108 @@ function blobPts(x,y,r,rng){
   for(i=0;i<n;i++){var a=i/n*TAU,rr=r*(.85+rng()*.3);pts.push({x:x+Math.cos(a)*rr*1.15,y:y+Math.sin(a)*rr})}
   return pts;
 }
-function drawStone(d,t){
-  var rng=mulberry(d.seed),x=d.x*W,y=d.y*H,R=U*(.045+rng()*.03);
-  var parts=[[0,0,R],[R*1.2,R*.5,R*.45],[-R*.9,R*.9,R*.32]],i;
-  for(i=0;i<parts.length;i++){
-    var p=parts[i],px=x+p[0],py=y+p[1],r=p[2],pts=blobPts(px,py,r,rng),path=new Path2D();
-    smoothPath(path,pts);
-    ctx.save(); ctx.translate(r*.18,r*.22); ctx.fillStyle="rgba(10,30,40,.2)"; ctx.fill(path); ctx.restore();
-    var g=ctx.createRadialGradient(px-r*.35,py-r*.4,r*.1,px,py,r*1.2);
-    g.addColorStop(0,"#dcd6c9"); g.addColorStop(1,"#8c8880");
-    ctx.fillStyle=g; ctx.fill(path);
-    ctx.strokeStyle="rgba(255,255,255,.25)"; ctx.lineWidth=1; ctx.stroke(path);
+/* ---- pierres : formes, roches et mousses variées (même code pour le bassin et le jardin) ---- */
+var STONEPAL=[["#dcd6c9","#8c8880"],["#c3ccd6","#5f6c7d"],["#dac8ae","#8a6f55"],["#9a9da4","#3b3f46"],["#e3cfc8","#9a7d78"],["#cfd8c9","#6f8470"],["#e8dcc0","#a89870"],["#d4cfd8","#7a7089"]];
+var MOSSCOL=["104,138,92","120,150,70","78,128,116","150,160,84"];
+function rockLook(seed){
+  var r=mulberry((seed|0)*7+11);
+  return {pal:STONEPAL[(r()*STONEPAL.length)|0],aspect:.66+r()*.72,rot:r()*TAU,n:8+((r()*5)|0),jag:.1+r()*.28,
+    moss:r()<.3?0:Math.round(1+r()*5),mossCol:MOSSCOL[(r()*MOSSCOL.length)|0],lichen:r()<.35,strata:r()<.4,cracks:(r()*3)|0,
+    cluster:r()<.35?1+((r()*2)|0):0};
+}
+function paintRock(cx,cy,R,seed,sh,opts){
+  opts=opts||{};
+  var L=rockLook(seed),pal=opts.pal||L.pal,rng=mulberry((seed|0)^0x77),pts=[],i,ca=Math.cos(L.rot),sa=Math.sin(L.rot);
+  for(i=0;i<L.n;i++){
+    var an=i/L.n*TAU,rr=R*(1-L.jag/2+rng()*L.jag),lx=Math.cos(an)*rr*L.aspect,ly=Math.sin(an)*rr;
+    pts.push({x:cx+lx*ca-ly*sa,y:cy+lx*sa+ly*ca});
+  }
+  var path=new Path2D(); smoothPath(path,pts);
+  ctx.save(); ctx.translate(sh.x,sh.y); ctx.fillStyle=sh.col; ctx.fill(path); ctx.restore();
+  var g=ctx.createRadialGradient(cx-R*.35,cy-R*.4,R*.1,cx,cy,R*1.25); g.addColorStop(0,pal[0]); g.addColorStop(1,pal[1]);
+  ctx.fillStyle=g; ctx.fill(path);
+  ctx.save(); ctx.clip(path);
+  if(L.strata){ctx.strokeStyle="rgba(40,36,30,.13)";ctx.lineWidth=1.3;for(i=-2;i<=2;i++){ctx.beginPath();ctx.moveTo(cx+(-R*1.3)*ca-i*R*.3*(-sa),cy+(-R*1.3)*sa+i*R*.3*ca);ctx.lineTo(cx+(R*1.3)*ca-i*R*.3*(-sa),cy+(R*1.3)*sa+i*R*.3*ca);ctx.stroke()}}
+  ctx.strokeStyle="rgba(30,26,22,.28)"; ctx.lineWidth=1;
+  for(i=0;i<L.cracks;i++){var kx=cx+(rng()-.5)*R,ky=cy+(rng()-.5)*R,ka=rng()*TAU;ctx.beginPath();ctx.moveTo(kx,ky);for(var q=0;q<3;q++){ka+=(rng()-.5)*1.2;kx+=Math.cos(ka)*R*.22;ky+=Math.sin(ka)*R*.22;ctx.lineTo(kx,ky)}ctx.stroke()}
+  for(i=0;i<L.moss;i++){
+    var mx=cx+(rng()-.5)*R*1.3,my=cy+(rng()-.2)*R*.9,mr=R*(.14+rng()*.2);
+    ctx.fillStyle="rgba("+L.mossCol+","+(.28+rng()*.22)+")"; ctx.beginPath(); ctx.ellipse(mx,my,mr*1.3,mr,rng()*3,0,TAU); ctx.fill();
+  }
+  if(L.lichen){for(i=0;i<9;i++){ctx.fillStyle=(i%3?"rgba(222,196,110,.55)":"rgba(240,236,214,.6)");ctx.beginPath();ctx.arc(cx+(rng()-.5)*R*1.2,cy+(rng()-.5)*R*1.1,1.5+rng()*2.6,0,TAU);ctx.fill()}}
+  ctx.restore();
+  ctx.strokeStyle="rgba(255,255,255,.28)"; ctx.lineWidth=1.3; ctx.stroke(path);
+  if(!opts.noCluster)for(i=0;i<L.cluster;i++){
+    var ac=rng()*TAU,dc=R*(1.05+rng()*.25),rs=R*(.22+rng()*.2);
+    paintRock(cx+Math.cos(ac)*dc,cy+Math.sin(ac)*dc,rs,seed*3+i+1,{x:sh.x*rs/R,y:sh.y*rs/R,col:sh.col},{noCluster:true,pal:pal});
   }
 }
+function drawStone(d,t){
+  var rng=mulberry(d.seed),x=d.x*W,y=d.y*H,R=U*(.04+rng()*.035),pal=rockLook(d.seed).pal;
+  var parts=[[0,0,R],[R*(.9+rng()*.5),R*(.2+rng()*.6),R*(.3+rng()*.2)],[-R*(.7+rng()*.4),R*(.6+rng()*.5),R*(.22+rng()*.15)]],i;
+  for(i=0;i<parts.length;i++){
+    var q=parts[i];
+    paintRock(x+q[0],y+q[1],q[2],d.seed+i*17,{x:q[2]*.18,y:q[2]*.22,col:"rgba(10,30,40,.2)"},{noCluster:true,pal:pal});
+  }
+}
+function drawPebbles(d,t){
+  var rng=mulberry(d.seed),x=d.x*W,y=d.y*H,n=6+((rng()*5)|0),R=U*.07,i,pal=STONEPAL[(rng()*STONEPAL.length)|0];
+  for(i=0;i<n;i++){
+    var a=rng()*TAU,dist=Math.sqrt(rng())*R,r=U*(.008+rng()*.014),cp=rng()<.4?STONEPAL[(rng()*STONEPAL.length)|0]:pal;
+    paintRock(x+Math.cos(a)*dist,y+Math.sin(a)*dist,r,d.seed*5+i,{x:r*.2,y:r*.25,col:"rgba(10,30,40,.18)"},{noCluster:true,pal:cp});
+  }
+}
+function drawReed(d,t){
+  var rng=mulberry(d.seed),x=d.x*W,y=d.y*H,n=9+((rng()*6)|0),len=U*(.07+rng()*.04),i,tone=rng()<.5?"112,150,86":"148,158,92";
+  ctx.lineCap="round";
+  for(i=0;i<n;i++){
+    var a=rng()*TAU,l=len*(.65+rng()*.5),sw=Math.sin(t*.7+i*1.3+d.seed)*.12;
+    var ex=x+Math.cos(a+sw)*l,ey=y+Math.sin(a+sw)*l;
+    ctx.strokeStyle="rgba(10,40,48,.15)"; ctx.lineWidth=2.4; ctx.beginPath(); ctx.moveTo(x+3,y+5); ctx.lineTo(ex+3,ey+5); ctx.stroke();
+    ctx.strokeStyle="rgba("+tone+","+(.7+rng()*.2)+")"; ctx.lineWidth=2+rng()*1.4; ctx.beginPath(); ctx.moveTo(x,y); ctx.quadraticCurveTo(x+Math.cos(a)*l*.5+rng()*4,y+Math.sin(a)*l*.5+rng()*4,ex,ey); ctx.stroke();
+    if(i%4===0){ctx.fillStyle="#8a6a48";ctx.beginPath();ctx.ellipse(ex,ey,3.6,1.8,a+sw,0,TAU);ctx.fill()}   // épi
+  }
+  ctx.fillStyle="rgba(96,126,78,.9)"; ctx.beginPath(); ctx.arc(x,y,3,0,TAU); ctx.fill();
+}
+function drawDecor(d,t){
+  if(d.type==="stone")drawStone(d,t); else if(d.type==="algae")drawAlgae(d,t); else if(d.type==="pebbles")drawPebbles(d,t);
+  else if(d.type==="reed")drawReed(d,t); else drawPad(d,t,d.type==="lotus");
+}
 function drawAlgae(d,t){
-  var rng=mulberry(d.seed),x=d.x*W,y=d.y*H,n=6+Math.floor(rng()*3),len=U*(.07+rng()*.04),i;
+  var rng=mulberry(d.seed),x=d.x*W,y=d.y*H,n=5+Math.floor(rng()*7),len=U*(.06+rng()*.06),i;
+  var AP=[["92,150,118","122,172,130"],["120,148,84","160,176,100"],["70,140,142","108,176,164"],["96,128,92","150,150,90"]],ap=AP[(rng()*AP.length)|0];
   ctx.lineCap="round";
   for(i=0;i<n;i++){
     var a=rng()*TAU,l=len*(.7+rng()*.6),bend=(rng()-.5)*1.2,sw=Math.sin(t*.6+i+d.seed)*.25;
     var ex=x+Math.cos(a+sw)*l,ey=y+Math.sin(a+sw)*l,cx=x+Math.cos(a+bend+sw*.5)*l*.55,cy=y+Math.sin(a+bend+sw*.5)*l*.55;
-    ctx.strokeStyle=i%2?"rgba(92,150,118,.8)":"rgba(122,172,130,.72)"; ctx.lineWidth=3+U*.003;
+    ctx.strokeStyle=i%2?"rgba("+ap[0]+",.8)":"rgba("+ap[1]+",.72)"; ctx.lineWidth=2+rng()*2.4+U*.003;
     ctx.beginPath(); ctx.moveTo(x,y); ctx.quadraticCurveTo(cx,cy,ex,ey); ctx.stroke();
   }
   ctx.fillStyle="rgba(70,120,96,.85)"; ctx.beginPath(); ctx.arc(x,y,3.2,0,TAU); ctx.fill();
 }
+var LOTUSPAL=[["#f4c4cf","#f8d6dd","#fbe6ea","214,118,150","#f2d06c"],["#fbf6ee","#fffdf8","#fffefb","190,180,160","#f0c75a"],["#d9c6ea","#e6d8f2","#f1e9f8","150,110,190","#f2d06c"],["#f6e08a","#f9eaa6","#fcf3c8","196,160,60","#e89a4a"],["#f1a3bd","#f6bccd","#fad6e0","200,80,120","#f4d36a"]];
 function drawLotus(x,y,R,t,seed){
-  var rings=[{n:9,len:1,w:.34,col:"#f4c4cf",off:0},{n:7,len:.78,w:.3,col:"#f8d6dd",off:.2},{n:5,len:.54,w:.28,col:"#fbe6ea",off:.5}];
+  var lp=LOTUSPAL[Math.abs(seed|0)%LOTUSPAL.length],ln=Math.abs((seed|0)*7)%3;
+  var rings=[{n:8+ln,len:1,w:.3+ln*.03,col:lp[0],off:0},{n:6+ln,len:.78,w:.3,col:lp[1],off:.2},{n:4+ln,len:.54,w:.28,col:lp[2],off:.5}];
   var br=1+Math.sin(t*.5+seed)*.015,ri,i;
   for(ri=0;ri<rings.length;ri++){
     var r=rings[ri];
     for(i=0;i<r.n;i++){
       var a=i/r.n*TAU+r.off+seed*.01,pl=R*r.len*br;
       ctx.save(); ctx.translate(x,y); ctx.rotate(a);
-      ctx.fillStyle=r.col; ctx.strokeStyle="rgba(214,118,150,.4)"; ctx.lineWidth=.8;
+      ctx.fillStyle=r.col; ctx.strokeStyle="rgba("+lp[3]+",.4)"; ctx.lineWidth=.8;
       ctx.beginPath(); ctx.ellipse(pl*.55,0,pl*.55,pl*r.w,0,0,TAU); ctx.fill(); ctx.stroke();
       ctx.restore();
     }
   }
-  ctx.fillStyle="#f2d06c"; ctx.beginPath(); ctx.arc(x,y,R*.16,0,TAU); ctx.fill();
+  ctx.fillStyle=lp[4]; ctx.beginPath(); ctx.arc(x,y,R*.16,0,TAU); ctx.fill();
 }
 function drawPad(d,t,lotus){
-  var rng=mulberry(d.seed),r=U*(.06+rng()*.02)*(lotus?1.15:1),rot=rng()*TAU+Math.sin(t*.07+d.seed)*.08;
-  var x=d.x*W+Math.sin(t*.12+d.seed)*U*.006,y=d.y*H+Math.cos(t*.1+d.seed*1.3)*U*.005,notch=.22,i;
+  var rng=mulberry(d.seed),r=U*(.05+rng()*.04)*(lotus?1.15:1),rot=rng()*TAU+Math.sin(t*.07+d.seed)*.08;
+  var x=d.x*W+Math.sin(t*.12+d.seed)*U*.006,y=d.y*H+Math.cos(t*.1+d.seed*1.3)*U*.005,notch=.12+rng()*.24,i,PD=[["#b9d9a8","#7aab86"],["#c9dfa2","#8fb06c"],["#a9d3c0","#6fa7a0"],["#d3dca0","#a3b06a"]],pd=PD[(rng()*PD.length)|0];
   ctx.fillStyle="rgba(14,44,52,.16)"; ctx.beginPath(); ctx.ellipse(x+r*.12,y+r*.18,r,r*.97,0,0,TAU); ctx.fill();
   ctx.beginPath(); ctx.moveTo(x,y); ctx.arc(x,y,r,rot+notch,rot+TAU-notch); ctx.closePath();
-  var g=ctx.createRadialGradient(x-r*.2,y-r*.2,r*.1,x,y,r); g.addColorStop(0,"#b9d9a8"); g.addColorStop(1,"#7aab86");
+  var g=ctx.createRadialGradient(x-r*.2,y-r*.2,r*.1,x,y,r); g.addColorStop(0,pd[0]); g.addColorStop(1,pd[1]);
   ctx.fillStyle=g; ctx.fill(); ctx.strokeStyle="rgba(60,110,86,.38)"; ctx.lineWidth=1.2; ctx.stroke();
   ctx.strokeStyle="rgba(60,110,86,.2)"; ctx.lineWidth=1;
   for(i=0;i<7;i++){
@@ -1054,7 +1112,7 @@ function renderPond(t){
   ctx.restore();
   // décors du fond
   for(i=0;i<S.decor.length;i++){
-    var d=S.decor[i]; if(d.type==="stone")drawStone(d,t); else if(d.type==="algae")drawAlgae(d,t);
+    var d=S.decor[i]; if(d.type==="stone"||d.type==="algae"||d.type==="pebbles")drawDecor(d,t);
   }
   ctx.fillStyle=rgbStr(cen,.16); ctx.fillRect(0,0,W,H);
   // particules de trouble
@@ -1088,13 +1146,13 @@ function renderPond(t){
   }
   // décors de surface
   for(i=0;i<S.decor.length;i++){
-    var d2=S.decor[i]; if(d2.type==="pad")drawPad(d2,t,false); else if(d2.type==="lotus")drawPad(d2,t,true);
+    var d2=S.decor[i]; if(d2.type==="pad"||d2.type==="lotus"||d2.type==="reed")drawDecor(d2,t);
   }
   // décor en cours de pose (aperçu)
   if(mode==="place"&&pending){
     var gd={type:pending,x:ghost.x,y:ghost.y,seed:pendingSeed};
     ctx.globalAlpha=.6;
-    if(pending==="stone")drawStone(gd,t); else if(pending==="algae")drawAlgae(gd,t); else drawPad(gd,t,pending==="lotus");
+    drawDecor(gd,t);
     ctx.globalAlpha=1;
   }
   // poisson en cours de pose (aperçu)
@@ -1229,7 +1287,7 @@ function setMode(m){
   $("bFeed").classList.toggle("on",m==="feed"); $("bClean").classList.toggle("on",m==="clean");
   canvas.style.cursor=(m==="feed"||m==="place")?"crosshair":(m==="clean"?"cell":"pointer");
 }
-function decorRadius(d){return U*({stone:.1,algae:.075,pad:.085,lotus:.1}[d.type]||.08)}
+function decorRadius(d){return U*({stone:.1,algae:.075,pad:.085,lotus:.1,pebbles:.07,reed:.08}[d.type]||.08)}
 function decorAt(x,y){
   for(var i=S.decor.length-1;i>=0;i--){
     var d=S.decor[i];
@@ -1474,12 +1532,14 @@ function openPanel(kind){
 function startPlace(type){
   if(S.decor.length>=MAX_DECOR){closePanel();toast("Le bassin est bien garni.");return}
   closePanel(); pendingSeed=(Math.random()*1e6)|0; setMode("place"); pending=type; ghost.x=.5; ghost.y=.5;
-  toast("Touche l'eau à l'endroit où le poser.",4500);
+  toast("Touche l'eau pour le poser, autant de fois que tu veux. Touche un autre bouton pour arrêter.",5500);
 }
 function placeDecor(x,y){
   var d={type:pending,x:clamp(x/W,.04,.96),y:clamp(y/H,.06,.94),seed:pendingSeed};
   S.decor.push(d); addRipple(x,y,50,1.8,.45); Aud.drop(); Aud.chime();
-  setMode(null); toast("Posé. Glisse-le pour le déplacer."); save();
+  save();
+  if(S.decor.length>=MAX_DECOR){setMode(null);toast("Le bassin est bien garni.");return}
+  pendingSeed=(Math.random()*1e6)|0;   // on reste en mode pose : le suivant est déjà prêt
 }
 var pendingName="";
 function startPlaceFish(type,name){
@@ -1710,7 +1770,9 @@ function gardenDown(e){
   if(gmode==='rake'||gmode==='smooth')gcur={x:p.x,y:p.y,ang:gcurAng,touch:e.pointerType==='touch',t:undefined,tool:gmode};
   if(gmode==="rock"){
     rocksNow().push({x:clamp(p.x,40,960),y:clamp(p.y,40,960),r:44+Math.random()*30,seed:(Math.random()*1e6)|0});
-    gmode=null; updateGUI(); Aud.drop(); save(); toast("Posé. Pour le déplacer : Rochers, puis Déplacer."); return;
+    Aud.drop(); save();
+    if(rocksNow().length>=MAX_ROCKS){gmode=null;updateGUI();toast("Le jardin est bien garni.")}
+    return;
   }
   if(gmode==="remove"){
     var rk=rockAt(p.x,p.y);
@@ -1804,7 +1866,7 @@ function buildRocksPanel(){
   var wrap=document.createElement("div"); wrap.className="opts";
   wrap.appendChild(optButton("Poser un rocher",null,function(){
     if(rocksNow().length>=MAX_ROCKS){toast("Le jardin est bien garni.");return}
-    closePanel(); gmode="rock"; updateGUI(); toast("Touche le sable pour poser un rocher.",4500);
+    closePanel(); gmode="rock"; updateGUI(); toast("Touche le sable pour poser des rochers, autant que tu veux. Retouche « Rochers » pour arrêter.",5500);
   }));
   wrap.appendChild(optButton("Déplacer un rocher",null,function(){
     closePanel(); gmode="move"; updateGUI(); toast("Glisse un rocher pour le déplacer. Retouche « Rochers » pour terminer.",5000);
@@ -1844,19 +1906,8 @@ function renderGarden(t){
   var lp=lightPos(hr),vx=W*.5-lp.x,vy=H*.5-lp.y,vl=Math.hypot(vx,vy)||1; vx/=vl; vy/=vl;
   var night=LT.cau<.2?.5:1,sl=(1-.6*wx.cloud)*night;
   for(i=0;i<rocksNow().length;i++){
-    var k=rocksNow()[i],pts=rockPath(k),path=new Path2D(); smoothPath(path,pts);
-    ctx.save(); ctx.translate(vx*k.r*.45*sl,vy*k.r*.45*sl); ctx.scale(1.05,1.05); ctx.fillStyle="rgba(60,48,30,"+(.22*sl+.05)+")"; ctx.fill(path); ctx.restore();
-    var gg=ctx.createRadialGradient(k.x-k.r*.35,k.y-k.r*.4,k.r*.1,k.x,k.y,k.r*1.2);
-    gg.addColorStop(0,"#d8d2c4"); gg.addColorStop(1,"#807c74");
-    ctx.fillStyle=gg; ctx.fill(path);
-    ctx.save(); ctx.clip(path);
-    var rr=mulberry(k.seed+50),m;
-    for(m=0;m<5;m++){
-      var mx=k.x+(rr()-.5)*k.r*1.3,my=k.y+(rr()-.2)*k.r*.9,mr=k.r*(.18+rr()*.2);
-      ctx.fillStyle="rgba(104,138,92,"+(.28+rr()*.2)+")"; ctx.beginPath(); ctx.ellipse(mx,my,mr*1.3,mr,rr()*3,0,TAU); ctx.fill();
-    }
-    ctx.restore();
-    ctx.strokeStyle="rgba(255,255,255,.28)"; ctx.lineWidth=1.5; ctx.stroke(path);
+    var k=rocksNow()[i];
+    paintRock(k.x,k.y,k.r,k.seed,{x:vx*k.r*.45*sl,y:vy*k.r*.45*sl,col:"rgba(60,48,30,"+(.22*sl+.05)+")"});
   }
   // l'outil en main : râteau, ou râteau retourné pour lisser
   if(gcur&&(gmode==="rake"||gmode==="smooth")){
