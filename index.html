@@ -646,6 +646,18 @@ function nearestOther(f,L){
   }
   return [ax,ay];
 }
+/* un doigt dans l'eau : les poissons tout proches sursautent légèrement et s'écartent un peu */
+function startle(x,y){
+  for(var i=0;i<fishes.length;i++){
+    var f=fishes[i],L=lenOf(f),d=Math.hypot(f.x-x,f.y-y),R=Math.max(L*1.6,U*.14);
+    if(d>R)continue;
+    var a=Math.atan2(f.y-y,f.x-x),far=L*(1.8+1.4*(1-d/R));
+    f.tx=clamp(f.x+Math.cos(a)*far,L*.7,W-L*.7); f.ty=clamp(f.y+Math.sin(a)*far,L*.7,H-L*.7);
+    f.tTimer=rand(3,5); f.fright=.9; f.pauseT=0;
+    f.speed=Math.max(f.speed,L*.55*(1-.4*d/R));
+    if(!f.lastScare||tNow-f.lastScare>1.2){f.lastScare=tNow;addRipple(f.x,f.y,L*.5,1.4,.35);Aud.swish()}
+  }
+}
 function updateFish(f,dt){
   var L=lenOf(f),hun=hungerOf(f.rec),tx=f.tx,ty=f.ty,seeking=false;
   if(hun>.05){var fd=nearestFood(f,hun);if(fd){tx=fd.x;ty=fd.y;seeking=true}}
@@ -654,6 +666,7 @@ function updateFish(f,dt){
     if(tNow-(f.lastSeek===undefined?-9:f.lastSeek)>1.5){f.pauseT=rand(.5,1);addRipple(f.x,f.y,L*.4,1.5,.4);Aud.swish()}
     f.lastSeek=tNow;
   }
+  if(f.fright>0){f.fright-=dt;seeking=false;tx=f.tx;ty=f.ty}
   if(f.pauseT>0)f.pauseT-=dt;
   f.tTimer-=dt;
   if(!seeking&&(f.tTimer<=0||Math.hypot(f.tx-f.x,f.ty-f.y)<L*.6)){pickTarget(f,L);tx=f.tx;ty=f.ty}
@@ -670,7 +683,7 @@ function updateFish(f,dt){
     if(nb&&nd>L*1.7){ax+=(nb.x-f.x)/nd*.9;ay+=(nb.y-f.y)/nd*.9}
   }
   desired=Math.atan2(ay,ax);
-  var diff=angDiff(desired,f.angle),rate=seeking?1.5:1.1;
+  var diff=angDiff(desired,f.angle),rate=f.fright>0?3.2:(seeking?1.5:1.1);
   f.angle+=clamp(diff,-rate*dt,rate*dt);
   var cruise=L*(seeking?.3:.26)*(1-.35*hun)*(reduced?.75:1)*(.75+.25*f.mood),target=cruise;
   if(seeking){var d=Math.hypot(tx-f.x,ty-f.y);target=Math.min(cruise,Math.max(L*.12,d*1.4))}
@@ -1441,7 +1454,7 @@ canvas.addEventListener("pointerdown",function(e){
     return;
   }
   // sans action : un doigt dans l'eau, une goutte qui s'étend puis disparaît
-  addRipple(x,y,46,2.6,.42); addRipple(x,y,26,1.8,.3); Aud.drop();
+  addRipple(x,y,46,2.6,.42); addRipple(x,y,26,1.8,.3); Aud.drop(); startle(x,y);
   fing={x:x,y:y,lastSnd:performance.now()};
   try{canvas.setPointerCapture(e.pointerId)}catch(err){}
 });
@@ -1456,7 +1469,7 @@ canvas.addEventListener("pointermove",function(e){
   }
   if(fing&&!mode){
     if(Math.hypot(x-fing.x,y-fing.y)>24){
-      addRipple(x,y,34,2.2,.32); fing.x=x; fing.y=y;
+      addRipple(x,y,34,2.2,.32); fing.x=x; fing.y=y; startle(x,y);
       var tn=performance.now(); if(tn-fing.lastSnd>260){fing.lastSnd=tn;Aud.lap()}
     }
     return;
