@@ -8,6 +8,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Carpe Diem">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="description" content="Carpe Diem : un bassin à koï et un jardin zen, un jeu de détente sans but.">
 <title>Carpe Diem</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -2290,5 +2292,6 @@ requestAnimationFrame(frame);
 })();
 </script>
 
+<script>if('serviceWorker' in navigator&&location.protocol.indexOf('http')===0){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})})}</script>
 </body>
 </html>

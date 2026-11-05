@@ -1,0 +1,17 @@
+{
+  "name": "Carpe Diem",
+  "short_name": "Carpe Diem",
+  "description": "Un bassin à koï et un jardin zen, un jeu de détente sans but.",
+  "lang": "fr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#5d8795",
+  "theme_color": "#5d8795",
+  "icons": [
+    {"src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}

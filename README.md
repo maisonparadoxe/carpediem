@@ -6,6 +6,7 @@ Pastel, minimaliste, inspiré des estampes japonaises. Le jeu tient dans un seul
 ## Jouer
 En ligne : https://maisonparadoxe.github.io/carpediem/ (GitHub Pages, branche `main`, dossier racine).
 En local : ouvre `index.html` dans un navigateur.
+Sur téléphone : ouvre l'adresse dans le navigateur, puis « Ajouter à l'écran d'accueil » (menu de Safari ou de Chrome). Le jeu s'ouvre alors en plein écran avec l'icône 鯉 et fonctionne aussi hors ligne.
 La progression est sauvegardée dans le navigateur (`localStorage`), propre à chaque adresse et à chaque appareil.
 
 ## Ce qu'on y fait
