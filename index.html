@@ -1,3 +1,14 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#5d8795">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Carpe Diem">
+<meta name="description" content="Carpe Diem : un bassin à koï et un jardin zen, un jeu de détente sans but.">
 <title>Carpe Diem</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='4' y='4' width='56' height='56' rx='9' fill='%23c8453b'/%3E%3Ctext x='32' y='47' font-size='42' text-anchor='middle' fill='%23fbeee6' font-family='serif'%3E%E9%AF%89%3C/text%3E%3C/svg%3E">
@@ -114,6 +125,41 @@ h1{margin:0;font:600 22px/1.1 var(--font-display);letter-spacing:.07em}
   .row{gap:2px;padding:5px}
   .b{padding:10px 8px;font-size:12.5px;letter-spacing:.01em}
 }
+html,body{overscroll-behavior:none;-webkit-touch-callout:none;-webkit-text-size-adjust:100%}
+.b,.opt,.edge,.brand{touch-action:manipulation}
+/* téléphone et tablette : grandes cibles tactiles, boutons en grille */
+@media (pointer:coarse),(max-width:600px){
+  h1{font-size:24px}
+  .seal{width:40px;height:40px;font-size:23px}
+  .day{font-size:13px}
+  .meters{font-size:13px;gap:9px}
+  .bar{width:64px;height:4px}
+  .toast{font-size:15px;padding:11px 18px;max-width:min(90vw,380px)}
+  .dock{gap:12px;padding-bottom:calc(14px + env(safe-area-inset-bottom,0px))}
+  .row{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:8px;width:min(460px,100%);box-sizing:border-box;border-radius:18px}
+  .b{min-height:54px;font-size:15.5px;padding:8px 6px;border-radius:12px;letter-spacing:.02em;background:rgba(255,255,255,.35)}
+  .b.on,.b[aria-expanded="true"]{background:rgba(42,58,75,.16)}
+  .panel{width:min(460px,100%);padding:14px;max-height:min(52vh,480px);border-radius:18px}
+  .panel h2{font-size:15px;margin-bottom:11px}
+  .opts{gap:8px}
+  .opt{min-height:46px;font-size:15.5px;padding:10px 14px;border-radius:12px}
+  .note{font-size:13.5px}
+  .fhint{font-size:13.5px}
+  .fhead{font-size:15.5px}
+  .frow{padding:12px 0}
+  .dot{width:13px;height:13px}
+  .edge{font-size:15px;padding:24px 14px 24px 18px;min-width:56px}
+  .edge.left{padding:24px 18px 24px 14px}
+  .zen .fr{font-size:14px}
+  .zen .au{font-size:12.5px}
+}
+/* téléphone en mode paysage : une seule rangée de boutons, moins haute */
+@media (pointer:coarse) and (max-height:520px){
+  .row{grid-template-columns:repeat(6,1fr);width:min(640px,100%)}
+  .b{min-height:46px;font-size:14.5px}
+  .panel{max-height:min(46vh,260px)}
+  .toast{top:calc(60px + env(safe-area-inset-top,0px))}
+}
 [hidden]{display:none!important}
 .edge{position:fixed;top:50%;right:max(0px,env(safe-area-inset-right));transform:translateY(-50%);z-index:5;border:0;cursor:pointer;
   font:inherit;font-size:13px;letter-spacing:.04em;color:var(--ink,#2a3a4b);background:rgba(246,243,233,.82);
@@ -121,6 +167,7 @@ h1{margin:0;font:600 22px/1.1 var(--font-display);letter-spacing:.07em}
 .edge.left{right:auto;left:max(0px,env(safe-area-inset-left));border-radius:0 14px 14px 0;padding:14px 14px 14px 10px}
 .edge:hover{background:rgba(250,248,240,.95)}
 body.idle .edge{opacity:0;pointer-events:none}
+.dock:has(#panel:not([hidden])) ~ .edge{opacity:0;pointer-events:none}
 /* phrase zen à l'encre */
 .zen{position:fixed;top:14%;z-index:3;pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:14px;opacity:0;color:#15130f}
 .zen.go{animation:zenLife 32s ease-in-out forwards}
@@ -151,6 +198,9 @@ body.idle .meters,body.idle .day{opacity:.0}
   .toast,.dock,.bar i,.b,.opt,.meters,.day{transition:none}
 }
 </style>
+</head>
+<body>
+
 
 <div class="splash" id="splash" aria-hidden="true"><span class="seal">鯉</span></div>
 <div class="mark" aria-hidden="true"><span class="seal">鯉</span></div>
@@ -574,7 +624,7 @@ function buildMotes(){
 }
 function resize(){
   W=window.innerWidth; H=window.innerHeight;
-  dpr=S.eco?1:Math.min(window.devicePixelRatio||1,2);
+  dpr=S.eco?1:Math.min(window.devicePixelRatio||1,(window.matchMedia&&matchMedia("(pointer:coarse)").matches)?1.75:2);
   canvas.width=Math.round(W*dpr); canvas.height=Math.round(H*dpr);
   U=Math.min(W,H);
   buildFloor(); buildGrain();
@@ -1662,6 +1712,7 @@ window.addEventListener("keydown",function(e){if(e.key==="Escape"){setMode(null)
 ["pointerdown","pointerup","keydown"].forEach(function(ev){window.addEventListener(ev,function(){Aud.start()},{passive:true})});
 ["pointermove","pointerdown","keydown"].forEach(function(ev){window.addEventListener(ev,wake,{passive:true})});
 window.addEventListener("resize",resize);
+window.addEventListener("orientationchange",function(){setTimeout(resize,250)});
 document.addEventListener("visibilitychange",function(){if(document.hidden)save()});
 window.addEventListener("pagehide",save);
 setInterval(save,20000);
@@ -2238,3 +2289,6 @@ function frame(now){
 requestAnimationFrame(frame);
 })();
 </script>
+
+</body>
+</html>
