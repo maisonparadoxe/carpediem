@@ -3,8 +3,10 @@
 Un petit jeu de détente dans le navigateur : un bassin à koï et un jardin de sable, sans but ni score.
 Pastel, minimaliste, inspiré des estampes japonaises. Le jeu tient dans un seul fichier, `index.html`, sans dépendance à installer.
 
-## Lancer le jeu
-Ouvre `index.html` dans un navigateur. Pour l'héberger : GitHub Pages sur la branche `main`, dossier racine.
+## Jouer
+En ligne : https://maisonparadoxe.github.io/carpediem/ (GitHub Pages, branche `main`, dossier racine).
+En local : ouvre `index.html` dans un navigateur.
+La progression est sauvegardée dans le navigateur (`localStorage`), propre à chaque adresse et à chaque appareil.
 
 ## Ce qu'on y fait
 - **Bassin :** nourrir (3 nourritures, chacune préférée par certaines espèces), nettoyer, poser et déplacer des décors, accueillir, vendre ou libérer des poissons.

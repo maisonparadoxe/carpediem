@@ -1589,6 +1589,7 @@ function fadeSand(steps,rainy){
   gctx.putImageData(im,0,0); sandDirty=n>0; saveSandSoon();
 }
 function updateGarden(dt){
+  if(gcur&&gcur.t!==undefined){gcur.t-=dt;if(gcur.t<=0)gcur=null}
   // sable mouillé : il s'humidifie vite sous la pluie et sèche en quelques minutes
   wet=clamp(wet+(wx.rain>.2?wx.rain*dt/35:-dt/360),0,1);
   var nowT=Date.now();
@@ -1652,6 +1653,7 @@ function tines(ax,ay,bx,by,ang,n,gap){
 function toSand(e){var G=gardenGeom();return {x:(e.clientX-G.gx)/G.gs,y:(e.clientY-G.gy)/G.gs}}
 function gardenDown(e){
   var p=toSand(e);
+  if(gmode==='rake'||gmode==='smooth')gcur={x:p.x,y:p.y,ang:gcurAng,touch:e.pointerType==='touch',t:undefined,tool:gmode};
   if(gmode==="rock"){
     rocksNow().push({x:clamp(p.x,40,960),y:clamp(p.y,40,960),r:44+Math.random()*30,seed:(Math.random()*1e6)|0});
     gmode=null; updateGUI(); Aud.drop(); save(); toast("Posé. Pour le déplacer : Rochers, puis Déplacer."); return;
@@ -1675,21 +1677,24 @@ function eraseSand(ax,ay,bx,by){
   gctx.save(); gctx.globalCompositeOperation="destination-out"; gctx.lineCap="round"; gctx.lineWidth=56; gctx.strokeStyle="rgba(0,0,0,.9)";
   gctx.beginPath(); gctx.moveTo(ax,ay); gctx.lineTo(bx+.01,by); gctx.stroke(); gctx.restore();
 }
+var gcur=null,gcurAng=0;
 function gardenMove(e){
   var q0=toSand(e);
+  if(gmode==="rake"||gmode==="smooth"){gcur={x:q0.x,y:q0.y,ang:gcurAng,touch:e.pointerType==="touch",t:undefined,tool:gmode}}else gcur=null;
   if(rockDrag){rockDrag.moved=true;rockDrag.k.x=clamp(q0.x+rockDrag.dx,40,960);rockDrag.k.y=clamp(q0.y+rockDrag.dy,40,960);canvas.style.cursor="grabbing";return}
   canvas.style.cursor=gmode==="move"?(rockAt(q0.x,q0.y)?"grab":"default"):"crosshair";
   if(!raking)return;
   var p=toSand(e),dx=p.x-raking.x,dy=p.y-raking.y,d=Math.hypot(dx,dy);
-  if(d<3)return;
+  if(d<3){if(gcur){gcur.x=p.x;gcur.y=p.y}return}
+  var na=Math.atan2(dy,dx);
+  if(raking.ang===null)raking.ang=na;
+  else{var da=na-raking.ang;while(da>Math.PI)da-=TAU;while(da<-Math.PI)da+=TAU;raking.ang+=da*.25}
+  if(gcur){gcur.x=p.x;gcur.y=p.y;gcur.ang=raking.ang;gcurAng=raking.ang}
   if(raking.smooth){
     eraseSand(raking.x,raking.y,p.x,p.y); raking.x=p.x; raking.y=p.y; raking.moved=true;
     var ns=performance.now(); if(ns-lastRakeSnd>420){lastRakeSnd=ns;Aud.sweep()}
     return;
   }
-  var na=Math.atan2(dy,dx);
-  if(raking.ang===null)raking.ang=na;
-  else{var da=na-raking.ang;while(da>Math.PI)da-=TAU;while(da<-Math.PI)da+=TAU;raking.ang+=da*.25}
   if(smoothAnim){gctx.clearRect(0,0,SAND,SAND);smoothAnim=null}
   if(raking.rake)tines(raking.x,raking.y,p.x,p.y,raking.ang,5,14); else tines(raking.x,raking.y,p.x,p.y,raking.ang,1,0);
   raking.x=p.x; raking.y=p.y; raking.moved=true;
@@ -1699,9 +1704,10 @@ function gardenUp(){
   if(rockDrag){if(rockDrag.moved){save();Aud.drop()}rockDrag=null}
   if(raking&&raking.moved)saveSandSoon();
   raking=null;
+  if(gcur&&gcur.touch)gcur.t=.7;
 }
 function showView(v){
-  gmode=null; if(typeof updateGUI==='function')updateGUI();
+  gmode=null; gcur=null; if(typeof updateGUI==='function')updateGUI();
   if(v===1&&!S.garden){openPanel("garden");return}
   if(mode)setMode(null); if(panelKind)closePanel();
   panDir=v; updateViewUI();
@@ -1797,6 +1803,27 @@ function renderGarden(t){
     }
     ctx.restore();
     ctx.strokeStyle="rgba(255,255,255,.28)"; ctx.lineWidth=1.5; ctx.stroke(path);
+  }
+  // l'outil en main : râteau, ou râteau retourné pour lisser
+  if(gcur&&(gmode==="rake"||gmode==="smooth")){
+    var gc=gcur,al=gc.t!==undefined?Math.min(1,gc.t/.4):1,pass;
+    ctx.save(); ctx.globalAlpha=al;
+    for(pass=0;pass<2;pass++){
+      ctx.save(); ctx.translate(gc.x+(pass?0:8),gc.y+(pass?0:10)); ctx.rotate(gc.ang);
+      var sh=!pass,wood=sh?"rgba(60,44,24,.2)":"#b08d5e",dark=sh?"rgba(60,44,24,.2)":"#6b5636";
+      // manche
+      ctx.fillStyle=sh?wood:"#c7a674"; ctx.beginPath(); ctx.roundRect?ctx.roundRect(-190,-3,186,6,3):ctx.rect(-190,-3,186,6); ctx.fill();
+      if(gc.tool==="rake"){
+        ctx.fillStyle=wood; ctx.beginPath(); ctx.roundRect?ctx.roundRect(-5,-44,10,88,4):ctx.rect(-5,-44,10,88); ctx.fill();
+        if(!sh){ctx.strokeStyle="rgba(255,255,255,.35)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(-3,-40);ctx.lineTo(-3,40);ctx.stroke()}
+        for(var ti=0;ti<5;ti++){ctx.fillStyle=dark; ctx.beginPath(); ctx.arc(5,(ti-2)*14,3,0,TAU); ctx.fill()}
+      }else{   // râteau retourné : le dos plat du râteau
+        ctx.fillStyle=sh?wood:"#cfb184"; ctx.beginPath(); ctx.roundRect?ctx.roundRect(-8,-31,16,62,6):ctx.rect(-8,-31,16,62); ctx.fill();
+        if(!sh){ctx.strokeStyle="rgba(107,86,54,.35)";ctx.lineWidth=1;ctx.beginPath();for(var li=-3;li<=3;li++){ctx.moveTo(-5,li*8);ctx.lineTo(5,li*8)}ctx.stroke()}
+      }
+      ctx.restore();
+    }
+    ctx.restore();
   }
   // gouttes sur le sable
   for(i=0;i<dimples.length;i++){
