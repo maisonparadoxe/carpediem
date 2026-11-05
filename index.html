@@ -436,6 +436,11 @@ var Aud={
     if(!this.ok()) return;
     this.plop(); this.burst(.3,"bandpass",1100,450,.8,.04,.02);
   },
+  wipe:function(){   // frottement sur la vitre
+    if(!this.ok()) return;
+    this.burst(.28,"bandpass",rand(500,800),rand(1000,1500),.8,.02);
+    if(Math.random()<.3)this.bubble();
+  },
   clean:function(){   // frottement doux sur la vitre et quelques bulles
     if(!this.ok()) return;
     this.burst(2.2,"bandpass",300,1800,.7,.035);
@@ -1099,6 +1104,14 @@ function renderPond(t){
   // feuilles, pétales ou neige
   for(i=0;i<floaters.length;i++)drawFloater(floaters[i],SEASON);
   drawDragonfly(t);
+  // passages du chiffon sur la vitre
+  for(i=wipes.length-1;i>=0;i--){
+    var wp=wipes[i]; wp.age+=1/60; var wk=wp.age/1.6;
+    if(wk>=1){wipes.splice(i,1);continue}
+    var wg=ctx.createRadialGradient(wp.x,wp.y,0,wp.x,wp.y,wp.R);
+    wg.addColorStop(0,"rgba(255,255,255,"+(.26*(1-wk))+")"); wg.addColorStop(1,"rgba(255,255,255,0)");
+    ctx.fillStyle=wg; ctx.fillRect(wp.x-wp.R,wp.y-wp.R,wp.R*2,wp.R*2);
+  }
   // nettoyage
   if(clean){
     var pr2=clean.t/clean.dur,ee=pr2<.5?2*pr2*pr2:1-Math.pow(-2*pr2+2,2)/2,bx=lerp(-W*.25,W*1.25,ee),bw=W*.28;
@@ -1176,8 +1189,8 @@ function toast(msg,ms){
 var fing=null,mode=null,pending=null,pendingSeed=0,ghost={x:.5,y:.5},drag=null,feedT=0;
 function setMode(m){
   mode=m; if(m!=="place"&&m!=="fish")pending=null;
-  $("bFeed").classList.toggle("on",m==="feed");
-  canvas.style.cursor=(m==="feed"||m==="place")?"crosshair":"pointer";
+  $("bFeed").classList.toggle("on",m==="feed"); $("bClean").classList.toggle("on",m==="clean");
+  canvas.style.cursor=(m==="feed"||m==="place")?"crosshair":(m==="clean"?"cell":"pointer");
 }
 function decorRadius(d){return U*({stone:.1,algae:.075,pad:.085,lotus:.1}[d.type]||.08)}
 function decorAt(x,y){
@@ -1417,7 +1430,27 @@ $("bFeed").addEventListener("click",function(){
   if(mode==="feed"){setMode(null);return}
   openPanel("food");
 });
-$("bClean").addEventListener("click",function(){if(mode)setMode(null);if(panelKind)closePanel();if(clean)return;startClean();toast("Un coup de chiffon sur la vitre.")});
+var CGX=14,CGY=9,cleanGrid=null,cleanD0=0,cleanCount=0,cleaning=false,wipes=[],lastWipeSnd=0;
+$("bClean").addEventListener("click",function(){
+  if(mode==="clean"){setMode(null);toast("Terminé.");return}
+  if(mode)setMode(null); if(panelKind)closePanel();
+  if(dirtNow()<.06){toast("L'eau est déjà claire.");return}
+  cleanGrid=new Array(CGX*CGY); cleanCount=0; cleanD0=dirtNow(); setMode("clean");
+  toast("Frotte la vitre du doigt pour nettoyer l'eau.",5000);
+});
+function wipeAt(x,y){
+  var R=Math.max(U*.09,34),gx0=Math.max(0,Math.floor((x-R)/W*CGX)),gx1=Math.min(CGX-1,Math.floor((x+R)/W*CGX)),
+      gy0=Math.max(0,Math.floor((y-R)/H*CGY)),gy1=Math.min(CGY-1,Math.floor((y+R)/H*CGY)),i,j,added=false;
+  wipes.push({x:x,y:y,age:0,R:R});
+  for(i=gx0;i<=gx1;i++)for(j=gy0;j<=gy1;j++){
+    var cx=(i+.5)/CGX*W,cy=(j+.5)/CGY*H;
+    if(!cleanGrid[j*CGX+i]&&Math.hypot(cx-x,cy-y)<R+Math.min(W/CGX,H/CGY)*.4){cleanGrid[j*CGX+i]=true;cleanCount++;added=true}
+  }
+  var c=Math.min(1,cleanCount/(CGX*CGY*.85));
+  S.dirt0=cleanD0*(1-c); S.tD0=Date.now();
+  var now=performance.now(); if(now-lastWipeSnd>220){lastWipeSnd=now;Aud.wipe()}
+  if(c>=1){setMode(null);cleaning=false;Aud.chime();toast("L'eau est claire.");save();updateMeters()}
+}
 $("bDecor").addEventListener("click",function(){if(mode==="move"){setMode(null);toast("Décors fixés.");return}openPanel("decor")});
 $("bFish").addEventListener("click",function(){openPanel("fish")});
 $("bMore").addEventListener("click",function(){openPanel("more")});
@@ -1445,6 +1478,7 @@ canvas.addEventListener("pointerdown",function(e){
     return;
   }
   if(mode==="feed"){feed(x,y);return}
+  if(mode==="clean"){cleaning=true;wipeAt(x,y);try{canvas.setPointerCapture(e.pointerId)}catch(err){}return}
   if(mode==="move"){
     var d=decorAt(x,y);
     if(d){
@@ -1462,6 +1496,7 @@ canvas.addEventListener("pointermove",function(e){
   if(moving())return;
   if(inGarden()){gardenMove(e);return}
   var x=e.clientX,y=e.clientY;
+  if(mode==="clean"){if(cleaning){var lw=wipes[wipes.length-1];if(!lw||Math.hypot(lw.x-x,lw.y-y)>Math.max(U*.03,12))wipeAt(x,y)}return}
   if(mode==="place"||mode==="fish"){ghost.x=x/W;ghost.y=y/H;return}
   if(drag){
     drag.moved=true; drag.d.x=clamp((x+drag.dx)/W,.03,.97); drag.d.y=clamp((y+drag.dy)/H,.04,.96);
@@ -1477,7 +1512,7 @@ canvas.addEventListener("pointermove",function(e){
   canvas.style.cursor=mode==="move"?(decorAt(x,y)?"grab":"default"):"pointer";
 });
 function endDrag(){
-  fing=null;
+  fing=null; if(cleaning){cleaning=false;save()}
   if(!drag) return;
   if(drag.moved){save();addRipple(drag.d.x*W,drag.d.y*H,36,1.2,.35)}
   drag=null; canvas.style.cursor="pointer";
@@ -1607,8 +1642,13 @@ function gardenDown(e){
     if(hit){rockDrag={k:hit,dx:hit.x-p.x,dy:hit.y-p.y,moved:false};try{canvas.setPointerCapture(e.pointerId)}catch(err){}}
     return;
   }
-  raking={x:p.x,y:p.y,ang:null,moved:false,rake:gmode==="rake"};
+  raking={x:p.x,y:p.y,ang:null,moved:false,rake:gmode==="rake",smooth:gmode==="smooth"};
+  if(raking.smooth){eraseSand(p.x,p.y,p.x,p.y)}
   try{canvas.setPointerCapture(e.pointerId)}catch(err){}
+}
+function eraseSand(ax,ay,bx,by){
+  gctx.save(); gctx.globalCompositeOperation="destination-out"; gctx.lineCap="round"; gctx.lineWidth=56; gctx.strokeStyle="rgba(0,0,0,.9)";
+  gctx.beginPath(); gctx.moveTo(ax,ay); gctx.lineTo(bx+.01,by); gctx.stroke(); gctx.restore();
 }
 function gardenMove(e){
   var q0=toSand(e);
@@ -1617,6 +1657,11 @@ function gardenMove(e){
   if(!raking)return;
   var p=toSand(e),dx=p.x-raking.x,dy=p.y-raking.y,d=Math.hypot(dx,dy);
   if(d<3)return;
+  if(raking.smooth){
+    eraseSand(raking.x,raking.y,p.x,p.y); raking.x=p.x; raking.y=p.y; raking.moved=true;
+    var ns=performance.now(); if(ns-lastRakeSnd>420){lastRakeSnd=ns;Aud.sweep()}
+    return;
+  }
   var na=Math.atan2(dy,dx);
   if(raking.ang===null)raking.ang=na;
   else{var da=na-raking.ang;while(da>Math.PI)da-=TAU;while(da<-Math.PI)da+=TAU;raking.ang+=da*.25}
@@ -1687,11 +1732,16 @@ function buildRocksPanel(){
 }
 function updateGUI(){
   $("bRake").classList.toggle("on",gmode==="rake");
+  $("bSmooth").classList.toggle("on",gmode==="smooth");
   $("bRocks").classList.toggle("on",gmode==="rock"||gmode==="move"||gmode==="remove");
   canvas.style.cursor=gmode==="move"?"default":"crosshair";
 }
 function rockAt(x,y){var a=rocksNow(),i;for(i=a.length-1;i>=0;i--)if(Math.hypot(x-a[i].x,y-a[i].y)<a[i].r*1.05)return a[i];return null}
-$("bSmooth").addEventListener("click",function(){if(smoothAnim)return;smoothAnim={t:0};Aud.sweep();saveSandSoon()});
+$("bSmooth").addEventListener("click",function(){
+  if(panelKind)closePanel();
+  gmode=gmode==="smooth"?null:"smooth"; updateGUI();
+  toast(gmode==="smooth"?"Le râteau retourné : passe-le sur le sable pour effacer les traces.":"Tu traces du doigt.",4000);
+});
 
 function rockPath(k){return blobPts(k.x,k.y,k.r,mulberry(k.seed))}
 function renderGarden(t){
