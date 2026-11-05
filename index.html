@@ -187,7 +187,7 @@ body.idle .edge{opacity:0;pointer-events:none}
 @keyframes splashOut{0%{background:rgba(236,240,232,.0)}12%{background:rgba(236,240,232,.55)}60%{background:rgba(236,240,232,.55)}100%{background:rgba(236,240,232,0);visibility:hidden}}
 @keyframes splashSeal{0%{opacity:0;transform:scale(1.25) rotate(-3deg)}18%{opacity:1;transform:scale(1) rotate(-3deg)}65%{opacity:1}100%{opacity:0;transform:scale(.96) rotate(-3deg)}}
 /* mode fond d'écran : tout l'interface disparaît, il reste un petit sceau dans le coin */
-.mark{position:fixed;right:14px;bottom:14px;z-index:4;display:none;opacity:.5;pointer-events:none}
+.mark{position:fixed;right:max(4px,env(safe-area-inset-right));bottom:max(4px,env(safe-area-inset-bottom));padding:12px;z-index:4;display:none;opacity:.5;cursor:pointer;touch-action:manipulation}
 .mark .seal{width:22px;height:22px;font-size:13px;border-radius:3px}
 body.wall .top,body.wall .dock,body.wall .edge,body.wall .toast{display:none}
 body.wall .mark{display:block}
@@ -1544,10 +1544,7 @@ function openPanel(kind){
     eco.addEventListener("click",function(){S.eco=!S.eco;ecoLabel();resize();save();toast(S.eco?"Mode économe : 30 images par seconde.":"Affichage fluide rétabli.")});
     var wl=optButton("",null,function(){});
     wl.appendChild(document.createTextNode("Mode fond d'écran"));
-    wl.addEventListener("click",function(){
-      S.wall=true; applyWall(); save(); closePanel();
-      toast("Interface masquée. Touche l'écran trois fois de suite pour la retrouver.",5000);
-    });
+    wl.addEventListener("click",function(){panelKind="wall";buildWallPanel()});
     var rs=optButton("Recommencer",null,function(){
       if(!resetArmed){
         resetArmed=true; rs.lastChild.nodeValue="Tout effacer ?"; clearTimeout(resetT);
@@ -1572,7 +1569,13 @@ function openPanel(kind){
       S.sky=S.sky==="reve"?"reel":"reve"; if(S.sky==="reve")vh=realHour(); skText(); save();
       toast(S.sky==="reve"?"Le ciel flâne : l'heure passe lentement, au hasard.":"Le ciel suit l'heure réelle.");
     });
-    wrap.appendChild(wxb); wrap.appendChild(skb); wrap.appendChild(eco); wrap.appendChild(wl); wrap.appendChild(rs); panel.appendChild(wrap);
+    var fsb=null;
+    if(fsCan()){
+      fsb=optButton("",null,function(){});
+      fsb.appendChild(document.createTextNode(fsOn()?"Quitter le plein écran":"Plein écran"));
+      fsb.addEventListener("click",function(){fsToggle();closePanel()});
+    }
+    wrap.appendChild(wxb); wrap.appendChild(skb); wrap.appendChild(eco); if(fsb)wrap.appendChild(fsb); wrap.appendChild(wl); wrap.appendChild(rs); panel.appendChild(wrap);
     var n=document.createElement("p"); n.className="note";
     n.textContent="Touche le titre pour prévisualiser les moments de la journée.";
     panel.appendChild(n);
@@ -1710,7 +1713,7 @@ function endDrag(){
 }
 canvas.addEventListener("pointerup",function(e){gardenUp();endDrag()});
 canvas.addEventListener("pointercancel",function(e){gardenUp();endDrag()});
-window.addEventListener("keydown",function(e){if(e.key==="Escape"){setMode(null);if(panelKind)closePanel()}});
+window.addEventListener("keydown",function(e){if(e.key==="Escape"){if(S.wall){leaveWall();return}setMode(null);if(panelKind)closePanel()}});
 ["pointerdown","pointerup","keydown"].forEach(function(ev){window.addEventListener(ev,function(){Aud.start()},{passive:true})});
 ["pointermove","pointerdown","keydown"].forEach(function(ev){window.addEventListener(ev,wake,{passive:true})});
 window.addEventListener("resize",resize);
@@ -2264,12 +2267,46 @@ function windLater(sec){clearTimeout(windT);windT=setTimeout(function(){
   if(!document.hidden&&S.sound)Aud.wind(.8+.6*wx.cloud+.4*wx.rain);
   windLater(rand(70,200));
 },sec*1000)}
+function fsEl(){return document.fullscreenElement||document.webkitFullscreenElement||null}
+function fsCan(){var d=document.documentElement;return !!(d.requestFullscreen||d.webkitRequestFullscreen)&&!(window.matchMedia&&matchMedia("(display-mode: standalone)").matches)}
+function fsOn(){return !!fsEl()}
+function fsEnter(){var d=document.documentElement,f=d.requestFullscreen||d.webkitRequestFullscreen;try{var r=f.call(d);if(r&&r.catch)r.catch(function(){})}catch(e){}}
+function fsExit(){var f=document.exitFullscreen||document.webkitExitFullscreen;try{if(f&&fsEl()){var r=f.call(document);if(r&&r.catch)r.catch(function(){})}}catch(e){}}
+function fsToggle(){if(!fsCan())return;fsOn()?fsExit():fsEnter()}
+var wallFS=false;
+function onFsChange(){
+  if(!fsOn()&&wallFS){wallFS=false;if(S.wall)leaveWall()}
+  setTimeout(resize,150);
+}
+document.addEventListener("fullscreenchange",onFsChange);
+document.addEventListener("webkitfullscreenchange",onFsChange);
+function buildWallPanel(){
+  panel.innerHTML="";
+  panel.appendChild(heading("Mode fond d'écran"));
+  var p1=document.createElement("p"); p1.className="note"; p1.style.cssText="margin:0 0 8px;opacity:.95";
+  p1.textContent="L'interface disparaît : il ne reste que le bassin, la lumière et les sons. Le bassin continue de vivre, mais tu ne peux plus nourrir ni nettoyer, et les poissons gardent leur faim.";
+  var p2=document.createElement("p"); p2.className="note"; p2.style.cssText="margin:0 0 10px;opacity:.95";
+  p2.textContent="Pour revenir : touche trois fois de suite l'écran, appuie sur Échap, ou touche le petit sceau 鯉 en bas à droite.";
+  if(fsCan())p1.textContent+=" Le navigateur passera aussi en plein écran.";
+  panel.appendChild(p1); panel.appendChild(p2);
+  var wrap=document.createElement("div"); wrap.className="opts";
+  wrap.appendChild(optButton("Activer",null,function(){
+    S.wall=true; applyWall(); save(); closePanel();
+    if(fsCan()&&!fsOn()){wallFS=true;fsEnter()}
+    toast("Interface masquée. Trois touches, Échap ou le sceau 鯉 pour revenir.",5000);
+  }));
+  wrap.appendChild(optButton("Annuler",null,function(){openPanel("more")}));
+  panel.appendChild(wrap);
+  panel.hidden=false; wake();
+}
+function leaveWall(){S.wall=false;applyWall();save();wallTaps=[];if(wallFS){wallFS=false;fsExit()}toast("Interface rétablie.")}
+document.querySelector(".mark").addEventListener("click",function(e){e.stopPropagation();if(S.wall)leaveWall()});
 function applyWall(){document.body.classList.toggle("wall",!!S.wall)}
 var wallTaps=[];
 window.addEventListener("pointerdown",function(){
   if(!S.wall)return;
   var n=Date.now(); wallTaps=wallTaps.filter(function(x){return n-x<1200}); wallTaps.push(n);
-  if(wallTaps.length>=3){S.wall=false;applyWall();save();wallTaps=[];toast("Interface rétablie.")}
+  if(wallTaps.length>=3)leaveWall();
 });
 /* ================= démarrage ================= */
 syncFish(); buildMotes(); resize(); initFloaters(); updateSoundBtn(); refreshWeather(true); loadSand(); S.fish.forEach(function(r){if(TYPES[r.type].rare)S.book[r.type]=true}); applyWall(); zenLater(rand(30,60)); windLater(rand(25,60)); updateViewUI(); updateMeters(); wake();
