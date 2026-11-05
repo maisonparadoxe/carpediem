@@ -261,7 +261,14 @@ var LIKES={kohaku:"granules",sanke:"granules",ogon:"algues",shiro:"algues",kingy
 /* poissons : prix d'achat, croissance (0 à 1) et prix de revente */
 var FISH_COST={kohaku:4,sanke:5,ogon:6,shiro:3,kingyo:2,yamabuki:14,asagi:14,showa:12,ginrin:12,purachina:13,shubunkin:8,taiyo:40,yoru:40,ame:40,hasu:40,ryu:100};
 /* identité, croissance et humeur de chaque poisson */
-var NAMES=["Hana","Sora","Mizu","Kiko","Taro","Yuki","Riku","Mochi","Momo","Nori","Ume","Kuri"];
+var NAMES=["Hana","Sora","Mizu","Kiko","Taro","Yuki","Riku","Mochi","Momo","Nori","Ume","Kuri","Sakura","Haru","Aki","Natsu","Fuyu","Kaze","Kumo","Tsuki","Hoshi","Nami","Kawa","Ayame","Botan","Kiku","Fuji","Matsu","Take","Sumire","Suzu","Tomo","Ren","Yume","Aoi","Akari","Hikari","Mei","Rin","Saki","Shiro","Kuro","Tora","Koharu","Mugi","Azuki","Daifuku","Dango","Kinako","Goma","Mame","Ringo","Yuzu","Anzu","Mikan","Nashi","Sango","Hotaru","Tsubame","Asahi","Sumi","Kaori","Nagi","Shizuku","Tsuyu","Hibiki","Kasumi","Mori","Ishi","Nozomi","Kokoro","Midori","Chiyo","Sachi","Tama","Kenji","Hiro","Jun"];
+function normName(n){return String(n||"").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"")}
+function freeName(used){   // un nom japonais pas encore pris
+  used=(used||S.fish.map(function(r){return identOf(r).name})).map(normName);
+  var free=NAMES.filter(function(n){return used.indexOf(normName(n))<0});
+  if(free.length)return free[(Math.random()*free.length)|0];
+  var b=NAMES[(Math.random()*NAMES.length)|0],i=2; while(used.indexOf(normName(b+" "+i))>=0)i++; return b+" "+i;
+}
 var TRAITS={
   sociable:{label:"Sociable",desc:"n'aime pas être seul"},
   solitaire:{label:"Solitaire",desc:"supporte mal plus de 3 poissons"},
@@ -276,7 +283,7 @@ function identOf(rec){
     var r=mulberry(k^0x51ed);
     idCache[k]={name:NAMES[(r()*NAMES.length)|0],trait:TRAIT_IDS[(r()*TRAIT_IDS.length)|0]};
   }
-  return idCache[k];
+  return {name:rec.name||idCache[k].name,trait:idCache[k].trait};
 }
 function traitOf(rec){return identOf(rec).trait}
 function ageDays(rec){return Math.max(0,(Date.now()-(rec.born||Date.now()))/864e5)}
@@ -314,7 +321,7 @@ function load(){
     if(!s||s.v!==1||!Array.isArray(s.fish)) return null;
     var now=Date.now();
     s.fish=s.fish.filter(function(r){return r&&TYPES[r.type]}).map(function(r){
-      return {type:r.type,seed:r.seed|0,eaten:+r.eaten||0,h0:clamp(+r.h0||0,0,1),t0:+r.t0||now,born:+r.born||+s.start||now};
+      return {type:r.type,seed:r.seed|0,eaten:+r.eaten||0,h0:clamp(+r.h0||0,0,1),t0:+r.t0||now,born:+r.born||+s.start||now,name:String(r.name||"").trim().slice(0,14)};
     });
     if(!s.fish.length) return null;
     s.decor=(Array.isArray(s.decor)?s.decor:[]).filter(function(d){return d&&DECORS.some(function(x){return x.id===d.type})})
@@ -338,6 +345,15 @@ function load(){
 }
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
 var S=load()||newState();
+function ensureNames(){   // chaque poisson a un nom unique (les anciennes parties sont mises à jour sans changer les noms déjà libres)
+  var used=[];
+  S.fish.forEach(function(r){
+    var n=r.name||identOf(r).name;
+    if(used.indexOf(normName(n))>=0)n=freeName(used);
+    r.name=n; used.push(normName(n));
+  });
+}
+ensureNames();
 
 function hungerOf(r){return clamp(r.h0+(Date.now()-r.t0)/(HUNGER_MS/(traitOf(r)==="glouton"?1.35:1)),0,1)}
 function dirtNow(){return clamp(S.dirt0+(Date.now()-S.tD0)/DIRT_MS,0,1)}
@@ -1267,6 +1283,34 @@ function releaseFish(rec){
   toast(nm+" est relâché dans la rivière.");
   buildFishPanel();
 }
+function nameTaken(n,except){return S.fish.some(function(r){return r!==except&&normName(identOf(r).name)===normName(n)})}
+function cleanName(v){return String(v||"").replace(/\s+/g," ").trim().slice(0,14)}
+function nameField(initial,exceptRec,onOk,okLabel){
+  var wrap=document.createElement("div"),inp=document.createElement("input"),msg=document.createElement("div"),ok=optButton(okLabel,null,function(){go()});
+  inp.type="text"; inp.value=initial; inp.maxLength=14; inp.autocomplete="off"; inp.setAttribute("aria-label","Nom du poisson");
+  inp.style.cssText="font:inherit;font-size:16px;padding:9px 12px;border-radius:10px;border:1px solid var(--paper-line);background:rgba(255,255,255,.7);color:inherit;width:100%;box-sizing:border-box";
+  msg.className="note"; msg.style.minHeight="1.3em";
+  function check(){
+    var v=cleanName(inp.value),bad=!v?"Choisis un nom.":nameTaken(v,exceptRec)?"Ce nom est déjà pris.":"";
+    msg.textContent=bad; ok.disabled=!!bad; return !bad;
+  }
+  function go(){if(check())onOk(cleanName(inp.value))}
+  inp.addEventListener("input",check); inp.addEventListener("keydown",function(e){e.stopPropagation();if(e.key==="Enter")go()});
+  wrap.appendChild(inp); wrap.appendChild(msg);
+  var row=document.createElement("div"); row.className="opts"; row.appendChild(ok); wrap.appendChild(row);
+  check(); return {el:wrap,input:inp};
+}
+function buildNamePanel(type){
+  if(S.fish.length>=MAX_FISH){toast("Le bassin est bien rempli.");return}
+  if(S.coins<FISH_COST[type]){toast("Pas assez de pièces pour l'instant.");return}
+  panel.innerHTML="";
+  panel.appendChild(heading("Comment s'appellera-t-il ? · "+TYPES[type].label));
+  var f=nameField(freeName(),null,function(nm){startPlaceFish(type,nm)},"Choisir l'emplacement");
+  panel.appendChild(f.el);
+  var back=optButton("Retour",null,function(){buildFishPanel()}); back.style.marginTop="8px"; panel.appendChild(back);
+  setTimeout(function(){try{f.input.focus();f.input.select()}catch(e){}},50);
+}
+var renaming=null;
 var hilite=null,hiliteT=0;
 function pickFish(rec){hilite=rec;hiliteT=6;if(panelKind==='fish')buildFishPanel()}
 function buildFishPanel(){
@@ -1274,7 +1318,7 @@ function buildFishPanel(){
   panel.appendChild(heading("Accueillir un poisson · "+S.coins+(S.coins>1?" pièces":" pièce")));
   var wrap=document.createElement("div"); wrap.className="opts";
   Object.keys(TYPES).filter(function(id){return !TYPES[id].rare}).forEach(function(id){
-    var c=FISH_COST[id],b=optButton(TYPES[id].label+" · "+c,TYPES[id].dot,function(){startPlaceFish(id)});
+    var c=FISH_COST[id],b=optButton(TYPES[id].label+" · "+c,TYPES[id].dot,function(){buildNamePanel(id)});
     if(S.coins<c)b.disabled=true;
     wrap.appendChild(b);
   });
@@ -1286,6 +1330,7 @@ function buildFishPanel(){
     row.addEventListener("click",function(e){if(e.target.closest("button"))return;pickFish(rec)});
     var head=document.createElement("div"); head.className="fhead"; head.style.cursor="pointer";
     var nm=document.createElement("span"); nm.textContent=idn.name+" · "+TYPES[rec.type].label;
+    nm.addEventListener("dblclick",function(){renaming=rec;buildFishPanel()});
     var gr=document.createElement("span"); gr.className="fstock"; gr.textContent="Taille "+Math.round(g*100)+" %";
     head.appendChild(nm); head.appendChild(gr);
     var days=Math.floor(ageDays(rec));
@@ -1308,8 +1353,16 @@ function buildFishPanel(){
     if(g<.5)sb.disabled=true;
     if(TYPES[rec.type].legend){sb.disabled=true;sb.lastChild.nodeValue="Trop précieux pour être vendu"}
     var rb=optButton(armed("release")?"Confirmer la libération":"Libérer",null,function(){arm("release",releaseFish)});
-    opts.appendChild(sb); opts.appendChild(rb);
-    row.appendChild(head); row.appendChild(d1); row.appendChild(d2); row.appendChild(opts); panel.appendChild(row);
+    var rn=optButton("Renommer",null,function(){renaming=rec;buildFishPanel()});
+    opts.appendChild(sb); opts.appendChild(rb); opts.appendChild(rn);
+    row.appendChild(head); row.appendChild(d1); row.appendChild(d2);
+    if(renaming===rec){
+      var rf=nameField(idn.name,rec,function(nn){rec.name=nn;renaming=null;save();toast("Il s'appelle maintenant "+nn+".");buildFishPanel()},"Valider");
+      rf.el.style.marginBottom="8px"; row.appendChild(rf.el);
+      var cancel=optButton("Annuler",null,function(){renaming=null;buildFishPanel()}); rf.el.lastChild.appendChild(cancel);
+      setTimeout(function(){try{rf.input.focus();rf.input.select()}catch(e){}},50);
+    }else row.appendChild(opts);
+    panel.appendChild(row);
   });
   var bk=optButton("Carnet d'espèces · "+bookCount()+"/"+Object.keys(TYPES).length,null,function(){buildBookPanel()}); bk.style.marginTop="12px"; panel.appendChild(bk);
   var n=document.createElement("p"); n.className="note";
@@ -1391,7 +1444,7 @@ function openPanel(kind){
         resetT=setTimeout(function(){resetArmed=false;rs.lastChild.nodeValue="Recommencer"},4000);
       }else{
         resetArmed=false; try{localStorage.removeItem(KEY)}catch(e){}
-        S=newState(); syncFish(); foods=[];bubbles=[];ripples=[]; resetSand(); resize(); closePanel(); toast("Un nouveau bassin t'attend."); save();
+        S=newState(); ensureNames(); syncFish(); foods=[];bubbles=[];ripples=[]; resetSand(); resize(); closePanel(); toast("Un nouveau bassin t'attend."); save();
       }
     });
     var wxb=optButton("",null,function(){});
@@ -1428,18 +1481,19 @@ function placeDecor(x,y){
   S.decor.push(d); addRipple(x,y,50,1.8,.45); Aud.drop(); Aud.chime();
   setMode(null); toast("Posé. Glisse-le pour le déplacer."); save();
 }
-function startPlaceFish(type){
+var pendingName="";
+function startPlaceFish(type,name){
   closePanel();
   if(S.fish.length>=MAX_FISH){toast("Le bassin est bien rempli.");return}
   if(S.coins<FISH_COST[type]){toast("Pas assez de pièces pour l'instant.");return}
-  setMode("fish"); pending=type; ghost.x=.5; ghost.y=.5;
-  toast("Touche l'eau à l'endroit où le mettre.",4500);
+  setMode("fish"); pending=type; pendingName=name; ghost.x=.5; ghost.y=.5;
+  toast("Touche l'eau à l'endroit où mettre "+name+".",4500);
 }
 function placeFish(x,y){
   var type=pending,cost=FISH_COST[type];
   if(S.coins<cost){setMode(null);toast("Pas assez de pièces pour l'instant.");return}
   S.coins-=cost; updateMeters();
-  var rec={type:type,seed:(Math.random()*1e9)|0,eaten:0,h0:.35,t0:Date.now(),born:Date.now()};
+  var rec={type:type,seed:(Math.random()*1e9)|0,eaten:0,h0:.35,t0:Date.now(),born:Date.now(),name:pendingName&&!nameTaken(pendingName,null)?pendingName:freeName()};
   S.fish.push(rec); var f=makeFish(rec);
   f.x=clamp(x,20,W-20); f.y=clamp(y,20,H-20);
   var L=lenOf(f),sp=L/SEG,i;
@@ -1811,12 +1865,12 @@ function renderGarden(t){
     for(pass=0;pass<2;pass++){
       ctx.save(); ctx.translate(gc.x+(pass?0:8),gc.y+(pass?0:10)); ctx.rotate(gc.ang);
       var sh=!pass,wood=sh?"rgba(60,44,24,.2)":"#b08d5e",dark=sh?"rgba(60,44,24,.2)":"#6b5636";
-      // manche
-      ctx.fillStyle=sh?wood:"#c7a674"; ctx.beginPath(); ctx.roundRect?ctx.roundRect(-190,-3,186,6,3):ctx.rect(-190,-3,186,6); ctx.fill();
+      // manche : le râteau se tire, la main est devant la tête du râteau
+      ctx.fillStyle=sh?wood:"#c7a674"; ctx.beginPath(); ctx.roundRect?ctx.roundRect(4,-3,186,6,3):ctx.rect(4,-3,186,6); ctx.fill();
       if(gc.tool==="rake"){
         ctx.fillStyle=wood; ctx.beginPath(); ctx.roundRect?ctx.roundRect(-5,-44,10,88,4):ctx.rect(-5,-44,10,88); ctx.fill();
         if(!sh){ctx.strokeStyle="rgba(255,255,255,.35)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(-3,-40);ctx.lineTo(-3,40);ctx.stroke()}
-        for(var ti=0;ti<5;ti++){ctx.fillStyle=dark; ctx.beginPath(); ctx.arc(5,(ti-2)*14,3,0,TAU); ctx.fill()}
+        for(var ti=0;ti<5;ti++){ctx.fillStyle=dark; ctx.beginPath(); ctx.arc(-5,(ti-2)*14,3,0,TAU); ctx.fill()}
       }else{   // râteau retourné : le dos plat du râteau
         ctx.fillStyle=sh?wood:"#cfb184"; ctx.beginPath(); ctx.roundRect?ctx.roundRect(-8,-31,16,62,6):ctx.rect(-8,-31,16,62); ctx.fill();
         if(!sh){ctx.strokeStyle="rgba(107,86,54,.35)";ctx.lineWidth=1;ctx.beginPath();for(var li=-3;li<=3;li++){ctx.moveTo(-5,li*8);ctx.lineTo(5,li*8)}ctx.stroke()}
@@ -1937,7 +1991,7 @@ function addDay(arr,k){if(arr.indexOf(k)<0){arr.push(k);if(arr.length>120)arr.sh
 function discover(type){if(!S.book[type]){S.book[type]=true;return true}return false}
 function bookCount(){var n=0;Object.keys(TYPES).forEach(function(id){if(BASICS.indexOf(id)>=0||S.book[id])n++});return n}
 function spawnFish(type,x,y){
-  var now=Date.now(),rec={type:type,seed:(Math.random()*1e9)|0,eaten:0,h0:.3,t0:now,born:now};
+  var now=Date.now(),rec={type:type,seed:(Math.random()*1e9)|0,eaten:0,h0:.3,t0:now,born:now,name:freeName()};
   S.fish.push(rec); var f=makeFish(rec);
   f.x=clamp(x,20,W-20); f.y=clamp(y,20,H-20);
   var L=lenOf(f),sp=L/SEG,i;
