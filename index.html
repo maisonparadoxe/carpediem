@@ -107,6 +107,7 @@ h1{margin:0;font:600 22px/1.1 var(--font-display);letter-spacing:.07em}
 .fstock{font-variant-numeric:tabular-nums}
 .fhint{margin:1px 0 7px;font-size:12px;opacity:.75}
 .opt[aria-pressed="true"]{background:rgba(42,58,75,.14)}
+.frow.sel{background:rgba(42,58,75,.07);border-radius:10px;padding-left:8px;padding-right:8px}
 .opt:disabled{opacity:.45;cursor:default}
 
 @media (max-width:440px){
@@ -720,6 +721,7 @@ function updateFish(f,dt){
 function update(dt){
   var i;
   // météo : transition douce vers l'état voulu, rides et bruit des gouttes
+  if(hiliteT>0){hiliteT-=dt;if(hiliteT<=0){hilite=null;if(panelKind==='fish')buildFishPanel()}}
   advanceSky(dt);
   updateDragonfly(dt);
   updateGarden(dt);
@@ -1054,6 +1056,20 @@ function renderPond(t){
     drawFish(gf);
   }
   drawEgg(t);
+  if(hilite&&hiliteT>0){   // le poisson choisi dans la liste est entouré et nommé
+    var hf=null; for(i=0;i<fishes.length;i++)if(fishes[i].rec===hilite)hf=fishes[i];
+    if(hf){
+      var hL=lenOf(hf),hk=Math.min(1,hiliteT/1.2),hr2=hL*(.62+.06*Math.sin(t*3)),cxh=hf.x,cyh=hf.y;
+      ctx.save(); ctx.globalAlpha=hk; ctx.strokeStyle="rgba(255,255,255,.9)"; ctx.lineWidth=1.6; ctx.setLineDash([6,7]); ctx.lineDashOffset=-t*8;
+      ctx.beginPath(); ctx.arc(cxh,cyh,hr2,0,TAU); ctx.stroke(); ctx.setLineDash([]);
+      ctx.strokeStyle="rgba(20,40,50,.25)"; ctx.lineWidth=1; ctx.beginPath(); ctx.arc(cxh,cyh,hr2+3,0,TAU); ctx.stroke();
+      var lab=identOf(hilite).name; ctx.font="600 15px 'Shippori Mincho',serif"; ctx.textAlign="center"; ctx.textBaseline="middle";
+      var tw=ctx.measureText(lab).width+18,ly=cyh-hr2-16; if(ly<70)ly=Math.min(cyh+hr2+16,H-20)>cyh+hr2?cyh+hr2+16:70; cxh=clamp(cxh,tw/2+8,W-tw/2-8);
+      ctx.fillStyle="rgba(246,243,233,.88)"; ctx.beginPath(); ctx.roundRect?ctx.roundRect(cxh-tw/2,ly-12,tw,24,12):ctx.rect(cxh-tw/2,ly-12,tw,24); ctx.fill();
+      ctx.fillStyle="#2a3a4b"; ctx.fillText(lab,cxh,ly+.5);
+      ctx.restore();
+    }
+  }
   // décors de surface
   for(i=0;i<S.decor.length;i++){
     var d2=S.decor[i]; if(d2.type==="pad")drawPad(d2,t,false); else if(d2.type==="lotus")drawPad(d2,t,true);
@@ -1251,6 +1267,8 @@ function releaseFish(rec){
   toast(nm+" est relâché dans la rivière.");
   buildFishPanel();
 }
+var hilite=null,hiliteT=0;
+function pickFish(rec){hilite=rec;hiliteT=6;if(panelKind==='fish')buildFishPanel()}
 function buildFishPanel(){
   panel.innerHTML="";
   panel.appendChild(heading("Accueillir un poisson · "+S.coins+(S.coins>1?" pièces":" pièce")));
@@ -1264,8 +1282,9 @@ function buildFishPanel(){
   var h2=heading("Mes poissons"); h2.style.marginTop="14px"; panel.appendChild(h2);
   fishes.forEach(function(f){
     var rec=f.rec,g=growthOf(rec),pr=sellPrice(rec),md=moodOf(rec),idn=identOf(rec),tr=TRAITS[idn.trait];
-    var row=document.createElement("div"); row.className="frow";
-    var head=document.createElement("div"); head.className="fhead";
+    var row=document.createElement("div"); row.className="frow"+(hilite===rec&&hiliteT>0?" sel":"");
+    row.addEventListener("click",function(e){if(e.target.closest("button"))return;pickFish(rec)});
+    var head=document.createElement("div"); head.className="fhead"; head.style.cursor="pointer";
     var nm=document.createElement("span"); nm.textContent=idn.name+" · "+TYPES[rec.type].label;
     var gr=document.createElement("span"); gr.className="fstock"; gr.textContent="Taille "+Math.round(g*100)+" %";
     head.appendChild(nm); head.appendChild(gr);
