@@ -24,3 +24,12 @@ La progression est sauvegardée dans le navigateur (`localStorage`), propre à c
 
 ## Idées pour la suite
 Héron, saisons plus marquées, version fond d'écran avec la vraie météo, plus d'outils pour le jardin.
+
+## Appli Android (fond d'écran animé)
+
+Le dossier `android/` contient une appli Android qui embarque le jeu (il fonctionne sans internet) et un fond d'écran animé.
+
+1. Sur GitHub, onglet **Actions** → dernière exécution de « Construire l'APK Android » → télécharger l'artefact **carpe-diem-apk**, le décompresser, puis installer `app-debug.apk` sur le téléphone (autoriser l'installation depuis cette source).
+2. Dans le jeu : **Réglages → Image de fond** pour choisir ton image habituelle, puis **Fond d'écran animé** pour l'activer.
+3. Pour basculer en un geste : ajouter la tuile **Carpe Diem** dans les réglages rapides (crayon de modification). Appui sur la tuile = active (une confirmation du système) ou désactive (remet ton image).
+4. **Transparence du bassin** règle à quel point ton image se voit à travers l'eau.
