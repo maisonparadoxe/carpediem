@@ -191,6 +191,7 @@ body.idle .edge{opacity:0;pointer-events:none}
 .mark .seal{width:22px;height:22px;font-size:13px;border-radius:3px}
 body.wall .top,body.wall .dock,body.wall .edge,body.wall .toast{display:none}
 body.wall .mark{display:block}
+.wp body,.wp canvas{pointer-events:none}.wp .mark,.wp .toast{display:none!important}
 body.wall canvas{cursor:default}
 @media (prefers-reduced-motion:reduce){.splash{animation-duration:.01s}.splash .seal{animation-duration:.01s}}
 body.idle .dock{opacity:0}
@@ -396,8 +397,10 @@ function load(){
     return s;
   }catch(e){return null}
 }
-function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+function save(){if(WP)return;try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
 var S=load()||newState();
+var WP=/[?&]wallpaper=1/.test(location.search);   // fond d'écran Android : lecture seule, muet, 30 images/s
+if(WP){S.wall=true;S.sound=false;S.eco=true;document.documentElement.classList.add("wp")}
 function ensureNames(){   // chaque poisson a un nom unique (les anciennes parties sont mises à jour sans changer les noms déjà libres)
   var used=[];
   S.fish.forEach(function(r){
@@ -626,7 +629,7 @@ function buildMotes(){
 }
 function resize(){
   W=window.innerWidth; H=window.innerHeight;
-  dpr=S.eco?1:Math.min(window.devicePixelRatio||1,(window.matchMedia&&matchMedia("(pointer:coarse)").matches)?1.75:2);
+  dpr=(S.eco&&!WP)?1:WP?Math.min(window.devicePixelRatio||1,1.5):Math.min(window.devicePixelRatio||1,(window.matchMedia&&matchMedia("(pointer:coarse)").matches)?1.75:2);
   canvas.width=Math.round(W*dpr); canvas.height=Math.round(H*dpr);
   U=Math.min(W,H);
   buildFloor(); buildGrain();
@@ -1575,7 +1578,18 @@ function openPanel(kind){
       fsb.appendChild(document.createTextNode(fsOn()?"Quitter le plein écran":"Plein écran"));
       fsb.addEventListener("click",function(){fsToggle();closePanel()});
     }
-    wrap.appendChild(wxb); wrap.appendChild(skb); wrap.appendChild(eco); if(fsb)wrap.appendChild(fsb); wrap.appendChild(wl); wrap.appendChild(rs); panel.appendChild(wrap);
+    var anb=[];
+    if(window.CarpeAndroid){   // appli Android : fond d'écran animé par-dessus l'image habituelle
+      var A=window.CarpeAndroid,OPS=[100,85,70,55,40];
+      var an=optButton("",null,function(){}); an.appendChild(document.createTextNode("Fond d'écran animé : "+(A.isActive()?"activé":"désactivé")));
+      an.addEventListener("click",function(){A.toggle();closePanel()});
+      var im=optButton("",null,function(){}); im.appendChild(document.createTextNode(A.hasImage()?"Image de fond : changer":"Image de fond : choisir"));
+      im.addEventListener("click",function(){A.pickImage()});
+      var tr=optButton("",null,function(){}); tr.appendChild(document.createTextNode("Transparence du bassin : "+A.getOpacity()+" %"));
+      tr.addEventListener("click",function(){var i=OPS.indexOf(A.getOpacity());A.setOpacity(OPS[(i+1)%OPS.length]);tr.lastChild.nodeValue="Transparence du bassin : "+A.getOpacity()+" %"});
+      anb=[an,im,tr];
+    }
+    wrap.appendChild(wxb); wrap.appendChild(skb); wrap.appendChild(eco); if(fsb)wrap.appendChild(fsb); anb.forEach(function(b){wrap.appendChild(b)}); wrap.appendChild(wl); wrap.appendChild(rs); panel.appendChild(wrap);
     var n=document.createElement("p"); n.className="note";
     n.textContent="Touche le titre pour prévisualiser les moments de la journée.";
     panel.appendChild(n);
@@ -1790,7 +1804,7 @@ function insideRock(x,y){
   for(var i=0;i<rocksNow().length;i++){var k=rocksNow()[i];if(Math.hypot(x-k.x,y-k.y)<k.r*1.15+8)return true}
   return false;
 }
-function saveSandSoon(){clearTimeout(sandT);sandT=setTimeout(function(){try{localStorage.setItem(SANDKEY,grooveCv.toDataURL("image/png"));localStorage.setItem(SANDKEY+"-t",String(Date.now()))}catch(e){}},1200)}
+function saveSandSoon(){if(WP)return;clearTimeout(sandT);sandT=setTimeout(function(){try{localStorage.setItem(SANDKEY,grooveCv.toDataURL("image/png"));localStorage.setItem(SANDKEY+"-t",String(Date.now()))}catch(e){}},1200)}
 function loadSand(){
   try{
     var u=localStorage.getItem(SANDKEY); if(!u)return;
@@ -2268,7 +2282,7 @@ function windLater(sec){clearTimeout(windT);windT=setTimeout(function(){
   windLater(rand(70,200));
 },sec*1000)}
 function fsEl(){return document.fullscreenElement||document.webkitFullscreenElement||null}
-function fsCan(){var d=document.documentElement;return !!(d.requestFullscreen||d.webkitRequestFullscreen)&&!(window.matchMedia&&matchMedia("(display-mode: standalone)").matches)}
+function fsCan(){var d=document.documentElement;return !window.CarpeAndroid&&!!(d.requestFullscreen||d.webkitRequestFullscreen)&&!(window.matchMedia&&matchMedia("(display-mode: standalone)").matches)}
 function fsOn(){return !!fsEl()}
 function fsEnter(){var d=document.documentElement,f=d.requestFullscreen||d.webkitRequestFullscreen;try{var r=f.call(d);if(r&&r.catch)r.catch(function(){})}catch(e){}}
 function fsExit(){var f=document.exitFullscreen||document.webkitExitFullscreen;try{if(f&&fsEl()){var r=f.call(document);if(r&&r.catch)r.catch(function(){})}}catch(e){}}
@@ -2299,6 +2313,8 @@ function buildWallPanel(){
   panel.appendChild(wrap);
   panel.hidden=false; wake();
 }
+window.carpeRefresh=function(){if(panelKind==="more")openPanel("more")};
+document.addEventListener("visibilitychange",function(){if(!document.hidden&&window.CarpeAndroid&&panelKind==="more")openPanel("more")});
 function leaveWall(){S.wall=false;applyWall();save();wallTaps=[];if(wallFS){wallFS=false;fsExit()}toast("Interface rétablie.")}
 document.querySelector(".mark").addEventListener("click",function(e){e.stopPropagation();if(S.wall)leaveWall()});
 function applyWall(){document.body.classList.toggle("wall",!!S.wall)}
@@ -2318,17 +2334,19 @@ syncFish(); buildMotes(); resize(); initFloaters(); updateSoundBtn(); refreshWea
   },700);
 })();
 
-var last=performance.now(),lastDraw=0;
+var last=performance.now(),lastDraw=0,wpPause=false;
 function frame(now){
-  requestAnimationFrame(frame);
-  if(S.eco&&now-lastDraw<33) return;
+  if(!WP)requestAnimationFrame(frame);
+  if(wpPause)return;
+  if(S.eco&&now-lastDraw<(WP?25:33)) return;
   var dt=Math.min(.05,(now-last)/1000); last=now; lastDraw=now; tNow+=dt;
   update(dt); render(tNow);
 }
-requestAnimationFrame(frame);
+if(WP){setInterval(function(){frame(performance.now())},33);window.carpePause=function(p){wpPause=!!p}}   // fond d'écran Android : pas de requestAnimationFrame hors fenêtre
+else requestAnimationFrame(frame);
 })();
 </script>
 
-<script>if('serviceWorker' in navigator&&location.protocol.indexOf('http')===0){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})})}</script>
+<script>if('serviceWorker' in navigator&&location.protocol.indexOf('http')===0&&!window.CarpeAndroid){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})})}</script>
 </body>
 </html>
